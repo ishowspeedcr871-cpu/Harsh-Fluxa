@@ -1,0 +1,6 @@
+{
+  "name": "Fluxa",
+  "description": "Premium multi-tenant print management system featuring secure OTP-based release, automated employee workflows, real-time printer discovery, and intelligent queue management with automatic print triggering.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
