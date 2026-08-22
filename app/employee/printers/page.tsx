@@ -3,17 +3,15 @@ import { prisma } from "@/database/client";
 import { requireEmployeeContext } from "@/services/employee/employee-service";
 import { EmployeePrintersClient } from "@/components/employee/employee-printers-client";
 import { serializeData } from "@/lib/serialization";
+import { listAvailablePrintersForEmployee } from "@/services/printers/printer-resolution";
 import { AlertCircle } from "lucide-react";
 
 export default async function PrintersPage() {
   try {
-    const { organization } = await requireEmployeeContext();
+    const { session, organization } = await requireEmployeeContext();
 
-    // 1. Fetch registered printers for this organization
-    const printers = await prisma.printer.findMany({
-      where: { organizationId: organization.id, deletedAt: null },
-      orderBy: [{ status: "asc" }, { name: "asc" }],
-    });
+    // 1. Fetch only connector-reported live printers; database rows alone are not availability proof.
+    const printers = await listAvailablePrintersForEmployee(organization.id, session.userId);
 
     // 2. Fetch active print jobs in the organization to feed the global queue table
     const jobs = await prisma.printJob.findMany({

@@ -33,6 +33,7 @@ type UploadedFile = {
   pages: number;
   color: boolean;
   orientation: "portrait" | "landscape";
+  binary?: File;
 };
 
 type DbJob = {
@@ -166,12 +167,13 @@ export function CustomerDashboardClient({
             
             return {
               id: crypto.randomUUID(),
-              name: pdfName,
+              name: f.name,
               size: f.size,
-              type: "application/pdf",
+              type: f.type,
               pages: pages,
               color: false,
               orientation: "portrait",
+              binary: f,
             };
           });
 
@@ -240,26 +242,28 @@ export function CustomerDashboardClient({
     setIsSubmitting(true);
 
     try {
+      const payload = {
+        title: orderName || (stagedFiles.length === 1 ? stagedFiles[0].name.replace(".pdf", "") : `Batch Order (${stagedFiles.length})`),
+        copies,
+        color: colorMode,
+        duplex: duplexMode,
+        paperSize,
+        orientation,
+        pageRange,
+        specialInstructions,
+        estimatedCost: activeFileCost,
+        fileHistory: stagedFiles.map(f => f.name).join(", "),
+      };
+      const formData = new FormData();
+      formData.append("payload", JSON.stringify(payload));
+      stagedFiles.forEach((file) => {
+        if (!file.binary) throw new Error(`FILE_REFERENCE_MISSING: ${file.name} has metadata but no local binary.`);
+        formData.append("files", file.binary, file.name);
+      });
+
       const response = await fetch("/api/customer/jobs", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: orderName || (stagedFiles.length === 1 ? stagedFiles[0].name.replace(".pdf", "") : `Batch Order (${stagedFiles.length})`),
-          copies,
-          color: colorMode,
-          duplex: duplexMode,
-          paperSize,
-          orientation,
-          pageRange,
-          specialInstructions,
-          estimatedCost: activeFileCost,
-          fileHistory: stagedFiles.map(f => f.name).join(", "),
-          files: stagedFiles.map(f => ({
-            fileName: f.name,
-            fileSize: f.size,
-            mimeType: f.type
-          }))
-        }),
+        body: formData,
       });
 
       const data = await response.json();

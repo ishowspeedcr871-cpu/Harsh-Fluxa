@@ -25,8 +25,17 @@ export async function POST(req: NextRequest) {
         files: j.files.map(f => ({
           id: f.id,
           name: f.fileName,
-          url: `/api/files/${f.id}` // Placeholder for file download
-        }))
+          mimeType: f.mimeType,
+          size: f.fileSize,
+          checksumSha256: f.checksumSha256,
+          downloadUrl: `/api/files/${f.id}`
+        })),
+        printer: j.printer ? {
+          id: j.printer.id,
+          name: j.printer.name,
+          connectorId: j.printer.connectorId,
+          windowsPrinterId: j.printer.windowsPrinterId
+        } : null
       }))
     });
   } catch (error: any) {

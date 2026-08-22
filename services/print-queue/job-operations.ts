@@ -11,6 +11,7 @@ import {
 import { createAuditLog } from "@/services/audit/log";
 import { createNotification } from "@/services/notifications/notification-service";
 import { generateCollectionOtp } from "@/services/print-jobs/otp-service";
+import { resolvePrinterForJob } from "@/services/printers/printer-resolution";
 
 async function recordOperation(
   jobId: string,
@@ -107,12 +108,25 @@ export async function acceptJobAction(formData: FormData) {
 
 export async function startJobAction(formData: FormData) {
   const input = await parseOperation(formData);
-  await recordOperation(
-    input.jobId,
-    "PRINTING",
-    "print_job.started",
-    input.note || "Print processing started.",
-  );
+  const explicitPrinterId = formData.get("printerId")?.toString() || null;
+  const { session, organization } = await requireOrganizationPermission(ORGANIZATION_PERMISSIONS.QUEUE_MANAGE);
+  const printer = await resolvePrinterForJob({
+    organizationId: organization.id,
+    employeeUserId: session.userId,
+    explicitPrinterId,
+    allowFallback: true,
+  });
+  await prisma.printJob.update({
+    where: { id: input.jobId, organizationId: organization.id },
+    data: {
+      status: "PRINTING",
+      printerId: printer.id,
+      processingStartedAt: new Date(),
+      events: {
+        create: { actorUserId: session.userId, toStatus: "PRINTING", note: input.note || `Released to live printer ${printer.name}.` },
+      },
+    },
+  });
   redirect(`/employee/queue/${input.jobId}`);
 }
 
@@ -174,6 +188,7 @@ export async function assignPrinterAction(formData: FormData) {
     where: { id: parsed.data.jobId, organizationId: organization.id },
   });
   if (!current) throw new Error("Print job not found.");
+  await resolvePrinterForJob({ organizationId: organization.id, employeeUserId: session.userId, explicitPrinterId: parsed.data.printerId });
   const job = await prisma.printJob.update({
     where: { id: current.id },
     data: {

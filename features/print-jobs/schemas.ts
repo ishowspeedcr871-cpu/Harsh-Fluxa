@@ -31,7 +31,9 @@ export const createPrintJobSchema = customerUploadConfigurationSchema.extend({
   files: z.array(z.object({
     fileName: z.string().min(1),
     fileSize: z.number().int().positive(),
-    mimeType: z.string().min(1)
+    mimeType: z.string().min(1),
+    storageKey: z.string().min(1),
+    checksumSha256: z.string().length(64).optional()
   })).optional()
 });
 
@@ -44,6 +46,8 @@ export const uploadFileSchema = z.object({
     .positive()
     .max(100 * 1024 * 1024),
   mimeType: z.string().trim().min(3).max(120),
+  storageKey: z.string().trim().min(1),
+  checksumSha256: z.string().trim().length(64).optional(),
 });
 
 export type PrintJobQuery = z.infer<typeof printJobQuerySchema>;

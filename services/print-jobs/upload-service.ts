@@ -25,6 +25,8 @@ export async function addPrintJobUpload(input: UploadFileInput) {
       fileName: input.fileName,
       fileSize: input.fileSize,
       mimeType: input.mimeType,
+      storageKey: input.storageKey,
+      checksumSha256: input.checksumSha256 ?? null,
       status: isAllowed ? "UPLOADED" : "FAILED",
       progress: isAllowed ? 100 : 0,
       validationError: isAllowed ? null : "Unsupported file type. Use PDF, PNG, JPEG, or WEBP.",
@@ -38,7 +40,7 @@ export async function addPrintJobUpload(input: UploadFileInput) {
     entityId: file.id,
   });
   if (isAllowed && job.status === "DRAFT")
-    await transitionPrintJob(job.id, "UPLOADED", "Customer uploaded file metadata.");
+    await transitionPrintJob(job.id, "UPLOADED", "Customer uploaded file binary to GridFS.");
   return file;
 }
 
@@ -49,6 +51,8 @@ export async function addPrintJobUploadAction(formData: FormData) {
     fileName: formData.get("fileName"),
     fileSize: formData.get("fileSize"),
     mimeType: formData.get("mimeType"),
+    storageKey: formData.get("storageKey"),
+    checksumSha256: formData.get("checksumSha256") || undefined,
   });
   if (!parsed.success) redirect("/customer/jobs/new?error=invalid_upload");
   await addPrintJobUpload(parsed.data);
