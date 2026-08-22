@@ -9,6 +9,10 @@ import { transitionPrintJob } from "@/services/print-jobs/print-job-service";
 const allowedMimeTypes = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
 
 export async function addPrintJobUpload(input: UploadFileInput) {
+  // This legacy metadata-only server action has no binary stream to put into GridFS.
+  // Refuse it rather than manufacturing a printable metadata record.
+  throw new Error("BINARY_UPLOAD_REQUIRED: Upload through /api/customer/jobs using multipart/form-data and a browser File.");
+  /* c8 ignore start -- retained below as the historical implementation reference. */
   const { session, organization } = await requireCustomerContext();
   const job = await prisma.printJob.findFirst({
     where: {
@@ -42,6 +46,7 @@ export async function addPrintJobUpload(input: UploadFileInput) {
   if (isAllowed && job.status === "DRAFT")
     await transitionPrintJob(job.id, "UPLOADED", "Customer uploaded file binary to GridFS.");
   return file;
+  /* c8 ignore stop */
 }
 
 export async function addPrintJobUploadAction(formData: FormData) {

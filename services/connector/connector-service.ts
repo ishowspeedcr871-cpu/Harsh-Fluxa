@@ -177,13 +177,14 @@ export async function getPendingJobsForPrinter(organizationId: string, macAddres
     where: {
       organizationId,
       status: "PRINTING",
+      connectorClaimedAt: null,
       printer: {
         connectorId,
         isAvailable: true,
         status: { in: ["ONLINE", "BUSY"] },
         windowsPrinterId: { not: null },
       },
-      files: { every: { storageKey: { not: null }, status: "UPLOADED" } }
+      files: { some: {}, every: { storageKey: { not: null }, status: "UPLOADED" } }
     },
     include: { files: true, printer: true }
   });

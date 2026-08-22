@@ -455,6 +455,8 @@ model PrintJob {
   queuedAt               DateTime?
   assignedAt             DateTime?
   processingStartedAt    DateTime?
+  connectorClaimedAt     DateTime?
+  connectorClaimId       String?
   pausedAt               DateTime?
   readyAt                DateTime?
   metadata               Json?
@@ -472,6 +474,7 @@ model PrintJob {
   @@index([customerUserId, createdAt])
   @@index([assignedUserId, status])
   @@index([printerId, status])
+  @@index([status, connectorClaimedAt])
   @@index([priority, createdAt])
 }
 

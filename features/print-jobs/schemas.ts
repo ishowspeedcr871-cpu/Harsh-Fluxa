@@ -32,9 +32,9 @@ export const createPrintJobSchema = customerUploadConfigurationSchema.extend({
     fileName: z.string().min(1),
     fileSize: z.number().int().positive(),
     mimeType: z.string().min(1),
-    storageKey: z.string().min(1),
-    checksumSha256: z.string().length(64).optional()
-  })).optional()
+    storageKey: z.string().regex(/^gridfs:[^:]+:[^:]+:[a-fA-F0-9]{24}$/),
+    checksumSha256: z.string().regex(/^[a-fA-F0-9]{64}$/)
+  })).min(1)
 });
 
 export const uploadFileSchema = z.object({
@@ -46,8 +46,8 @@ export const uploadFileSchema = z.object({
     .positive()
     .max(100 * 1024 * 1024),
   mimeType: z.string().trim().min(3).max(120),
-  storageKey: z.string().trim().min(1),
-  checksumSha256: z.string().trim().length(64).optional(),
+  storageKey: z.string().trim().regex(/^gridfs:[^:]+:[^:]+:[a-fA-F0-9]{24}$/),
+  checksumSha256: z.string().trim().regex(/^[a-fA-F0-9]{64}$/),
 });
 
 export type PrintJobQuery = z.infer<typeof printJobQuerySchema>;
