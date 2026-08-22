@@ -8,6 +8,8 @@ import { estimateUploadCost } from "@/features/customer/upload-schemas";
 import { requireCustomerContext } from "@/services/customer/customer-service";
 import { createNotification } from "@/services/notifications/notification-service";
 
+const CONNECTOR_SUPPORTED_MIME_TYPES = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
+
 const lifecycle: PrintJobStatus[] = [
   "DRAFT",
   "UPLOADED",
@@ -110,6 +112,11 @@ export async function getCustomerPrintJob(jobId: string) {
 
 export async function createCustomerPrintJob(input: CreatePrintJobInput) {
   const { session, organization } = await requireCustomerContext();
+  if (!input.files?.length) throw new Error("FILE_REFERENCE_MISSING: At least one uploaded binary is required.");
+  for (const file of input.files) {
+    if (!file.storageKey) throw new Error("FILE_REFERENCE_MISSING: Uploaded file is missing its binary storage key.");
+    if (!CONNECTOR_SUPPORTED_MIME_TYPES.has(file.mimeType)) throw new Error("UNSUPPORTED_FILE_TYPE: Only PDF, PNG, JPEG, and WEBP files can be printed by the connector.");
+  }
   const job = await prisma.printJob.create({
     data: {
       organizationId: organization.id,
@@ -146,7 +153,10 @@ export async function createCustomerPrintJob(input: CreatePrintJobInput) {
           fileName: f.fileName,
           fileSize: f.fileSize,
           mimeType: f.mimeType,
-          status: "UPLOADED"
+          storageKey: f.storageKey,
+          checksumSha256: f.checksumSha256 ?? null,
+          status: "UPLOADED",
+          progress: 100
         }))
       } : undefined,
     },

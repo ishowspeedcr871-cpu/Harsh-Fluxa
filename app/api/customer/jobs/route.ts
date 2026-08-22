@@ -1,12 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createCustomerPrintJob } from "@/services/print-jobs/print-job-service";
 import { generateCustomerReleaseOtp } from "@/services/print-jobs/otp-service";
+import { storeUploadedFile } from "@/services/storage/gridfs-storage";
+
+const CONNECTOR_SUPPORTED_MIME_TYPES = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    
-    // Create the print job
+    const contentType = req.headers.get("content-type") || "";
+    let body: any;
+    let uploadedFiles: Array<{ fileName: string; fileSize: number; mimeType: string; storageKey: string; checksumSha256: string }> = [];
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      body = JSON.parse(String(formData.get("payload") || "{}"));
+      const files = formData.getAll("files").filter((entry): entry is File => entry instanceof File && entry.size > 0);
+      if (!files.length) throw new Error("FILE_REFERENCE_MISSING: No binary files were uploaded.");
+      for (const file of files) {
+        if (!CONNECTOR_SUPPORTED_MIME_TYPES.has(file.type)) throw new Error("UNSUPPORTED_FILE_TYPE: Only PDF, PNG, JPEG, and WEBP files are supported.");
+        const stored = await storeUploadedFile(file);
+        uploadedFiles.push({
+          fileName: stored.fileName,
+          fileSize: stored.size,
+          mimeType: stored.mimeType,
+          storageKey: stored.storageKey,
+          checksumSha256: stored.checksumSha256,
+        });
+      }
+    } else {
+      body = await req.json();
+      uploadedFiles = body.files || [];
+    }
+
     const job = await createCustomerPrintJob({
       title: body.title || "Print Job",
       description: body.description || "",
@@ -20,39 +45,23 @@ export async function POST(req: NextRequest) {
       specialInstructions: body.specialInstructions || "",
       estimatedCost: Number(body.estimatedCost || 0),
       fileHistory: body.fileHistory || "",
-      files: body.files,
+      files: uploadedFiles,
     });
 
-    // Automatically generate secure release OTP
-    let otpCode = "734901"; // Fallback default
+    let otpCode = "734901";
     try {
       const otpResult = await generateCustomerReleaseOtp(job.id);
-      if (otpResult && otpResult.code) {
-        otpCode = otpResult.code;
-      }
+      if (otpResult?.code) otpCode = otpResult.code;
     } catch (otpErr) {
       console.warn("Could not generate OTP automatically inside API route:", otpErr);
     }
 
     return NextResponse.json({
       success: true,
-      job: {
-        id: job.id,
-        title: job.title,
-        status: job.status,
-        copies: job.copies,
-        color: job.color,
-        estimatedCost: Number(job.estimatedCost || 0),
-        createdAt: job.createdAt.toISOString(),
-        otpCode,
-        shopName: "Apex Digital"
-      }
+      job: { id: job.id, title: job.title, status: job.status, copies: job.copies, color: job.color, estimatedCost: Number(job.estimatedCost || 0), createdAt: job.createdAt.toISOString(), otpCode, shopName: "Apex Digital" },
     });
   } catch (error: any) {
     console.error("Error creating print job in API route:", error);
-    return NextResponse.json(
-      { success: false, error: error.message || "Failed to create print job" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: error.message || "Failed to create print job" }, { status: 500 });
   }
 }

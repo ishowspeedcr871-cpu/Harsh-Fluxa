@@ -17,6 +17,7 @@ import {
   Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { setEmployeeDefaultPrinterAction } from "@/services/printers/printer-service";
 
 interface EmployeePrintersClientProps {
   initialPrinters: any[];
@@ -35,51 +36,19 @@ export function EmployeePrintersClient({
   const [isPending, startTransition] = useTransition();
   const [scanMessage, setScanMessage] = useState<string | null>(null);
 
-  // Parse or mock toner levels for rich visual fidelity
+  // Render only live printers returned by the backend from Desktop Connector Windows discovery.
   const processedPrinters = useMemo(() => {
-    return initialPrinters.map((printer, index) => {
-      // Default toner values if missing in JSON
-      let toner = { c: 80, m: 75, y: 70, k: 85 };
-      if (printer.tonerLevel && typeof printer.tonerLevel === "object") {
-        toner = { 
-          c: Number(printer.tonerLevel.c ?? 80), 
-          m: Number(printer.tonerLevel.m ?? 75), 
-          y: Number(printer.tonerLevel.y ?? 70), 
-          k: Number(printer.tonerLevel.k ?? 85) 
-        };
-      } else {
-        // Deterministic realistic levels based on printer index
-        const seeds = [
-          { c: 92, m: 85, y: 88, k: 95 }, // Canon imagePRESS C710 (Production)
-          { c: 60, m: 75, y: 70, k: 80 }, // Xerox Versant 180 (QuickPrint)
-          { c: 30, m: 20, y: 25, k: 35 }, // HP PageWide XL (Plotter)
-          { c: 12, m: 8, y: 15, k: 5 }     // Konica Minolta C3070 (Office) - low
-        ];
-        toner = seeds[index % seeds.length];
-      }
-
-      // Paper loaded configuration
-      const paperSizes = ["A4", "A3", "36\" Roll", "Letter"];
-      const paperLoaded = printer.maxPageSize || paperSizes[index % paperSizes.length];
-
-      // Active job or queue representation
-      let activeJobText = "Idle";
-      if (printer.status === "BUSY") {
-        activeJobText = `#FLX-9002`;
-      } else if (printer.status === "ONLINE") {
-        activeJobText = index % 2 === 0 ? `#FLX-9001` : `Queue (${Math.floor(Math.random() * 3) + 1})`;
-      }
-
-      // Friendly display fields matching the beautiful screenshot labels
-      const roles = ["Production", "QuickPrint", "Plotter", "Office"];
-      const role = roles[index % roles.length];
+    return initialPrinters.map((printer) => {
+      const toner = printer.tonerLevel && typeof printer.tonerLevel === "object"
+        ? { c: Number(printer.tonerLevel.c ?? 0), m: Number(printer.tonerLevel.m ?? 0), y: Number(printer.tonerLevel.y ?? 0), k: Number(printer.tonerLevel.k ?? 0) }
+        : { c: 0, m: 0, y: 0, k: 0 };
 
       return {
         ...printer,
         toner,
-        paperLoaded,
-        activeJobText,
-        role
+        paperLoaded: printer.maxPageSize || "Unknown",
+        activeJobText: printer.status === "BUSY" ? "Printing" : "Idle",
+        role: printer.isWindowsDefault ? "Windows Default" : "Connector Printer"
       };
     });
   }, [initialPrinters]);
@@ -103,22 +72,20 @@ export function EmployeePrintersClient({
   // Execute Printer Discovery
   const triggerDiscovery = async () => {
     setIsScanning(true);
-    setScanMessage("Searching local network via SNMP, mDNS, and IP scan...");
+    setScanMessage("Requesting latest live printer snapshot from the connected Desktop Connector...");
     try {
-      const res = await fetch("/api/organization/printers/discover", { 
-        method: "POST" 
-      });
+      const res = await fetch("/api/employee/printers", { cache: "no-store" });
       const data = await res.json();
       if (data.success) {
-        setScanMessage(`Success! Found and registered ${data.count} new local network printers.`);
+        setScanMessage(`Connector snapshot refreshed. ${data.printers.length} live printers are currently available.`);
         startTransition(() => {
           router.refresh();
         });
       } else {
-        setScanMessage(data.error || "No new network printers detected.");
+        setScanMessage(data.error || "No live connector printers are currently available.");
       }
     } catch (err) {
-      setScanMessage("Failed to run local network discovery scanning.");
+      setScanMessage("Failed to refresh live connector printer availability.");
     } finally {
       setTimeout(() => {
         setIsScanning(false);
@@ -167,7 +134,7 @@ export function EmployeePrintersClient({
         <div className="rounded-[24px] border border-[#00f0ff]/35 bg-[#07131a] p-5 text-accent-cyan animate-pulse flex items-center gap-4">
           <Cpu className="size-6 animate-spin text-[#00f0ff]" />
           <div>
-            <p className="text-sm font-bold tracking-wide">Universal Network Scan Running</p>
+            <p className="text-sm font-bold tracking-wide">Connector Printer Refresh Running</p>
             <p className="text-xs text-cyan-300/80">{scanMessage}</p>
           </div>
         </div>
@@ -229,7 +196,7 @@ export function EmployeePrintersClient({
                     onClick={triggerDiscovery}
                     className="h-9 rounded-full bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs"
                   >
-                    Simulate Live Discovery
+                    Refresh Connector Printers
                   </Button>
                 </div>
               </div>
@@ -256,6 +223,11 @@ export function EmployeePrintersClient({
                             <span className="text-muted-foreground font-medium text-xs">
                               ({printer.role})
                             </span>
+                            {printer.isEmployeeDefault && (
+                              <span className="ml-2 rounded-full border border-accent-cyan/30 bg-accent-cyan/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-accent-cyan">
+                                Employee Default
+                              </span>
+                            )}
                           </h3>
                         </div>
 
@@ -317,6 +289,17 @@ export function EmployeePrintersClient({
                               />
                             </div>
                           </div>
+
+                          <form action={setEmployeeDefaultPrinterAction}>
+                            <input type="hidden" name="printerId" value={printer.id} />
+                            <Button
+                              type="submit"
+                              disabled={printer.isEmployeeDefault}
+                              className="h-8 rounded-full bg-accent-cyan/10 px-3 text-[10px] font-black uppercase tracking-widest text-accent-cyan hover:bg-accent-cyan/20 disabled:opacity-60"
+                            >
+                              {printer.isEmployeeDefault ? "Current Default" : "Set Employee Default"}
+                            </Button>
+                          </form>
 
                           {/* Paper and Active Job Row */}
                           <div className="flex items-center justify-between text-[11px] font-bold text-muted-foreground pt-1 border-t border-white/5">

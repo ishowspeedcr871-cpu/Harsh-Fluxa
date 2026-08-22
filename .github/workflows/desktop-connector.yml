@@ -1,0 +1,32 @@
+name: Desktop Connector
+
+on:
+  push:
+    paths:
+      - 'desktop-connector/**'
+      - '.github/workflows/desktop-connector.yml'
+  pull_request:
+    paths:
+      - 'desktop-connector/**'
+      - '.github/workflows/desktop-connector.yml'
+
+jobs:
+  build-windows-connector:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop-connector
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop-connector/package.json
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fluxa-desktop-connector-js
+          path: desktop-connector/dist

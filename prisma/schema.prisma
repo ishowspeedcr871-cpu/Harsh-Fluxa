@@ -141,6 +141,7 @@ enum PrinterConnectionType {
   IPP
   NETWORK_IP
   CLOUD
+  SPOOLER_AGENT
 }
 
 enum PrinterHealth {
@@ -380,6 +381,11 @@ model Printer {
   connectionType       PrinterConnectionType @default(NETWORK_IP)
   ipAddress            String?
   macAddress           String?
+  connectorId          String?
+  windowsPrinterId     String?
+  isAvailable          Boolean               @default(false)
+  isWindowsDefault     Boolean               @default(false)
+  lastDiscoveryAt      DateTime?
   isColor              Boolean               @default(true)
   supportsDuplex       Boolean               @default(true)
   maxPageSize          String                @default("A4")
@@ -403,6 +409,8 @@ model Printer {
 
   @@unique([organizationId, macAddress])
   @@index([organizationId, status, health])
+  @@index([organizationId, connectorId, isAvailable])
+  @@index([windowsPrinterId])
   @@index([deletedAt])
 }
 
@@ -412,10 +420,12 @@ model PrinterAssignment {
   printer        Printer  @relation(fields: [printerId], references: [id], onDelete: Cascade)
   assignedUserId String
   assignedUser   User     @relation(fields: [assignedUserId], references: [id], onDelete: Cascade)
+  isDefault      Boolean  @default(false)
   createdAt      DateTime @default(now())
 
   @@unique([printerId, assignedUserId])
   @@index([assignedUserId])
+  @@index([assignedUserId, isDefault])
 }
 
 model PrintJob {
@@ -495,6 +505,7 @@ model PrintJobFile {
   fileSize               Int
   mimeType               String
   storageKey             String?
+  checksumSha256         String?
   previewUrl             String?
   status                 UploadStatus            @default(PENDING)
   progress               Int                     @default(0)
@@ -506,6 +517,7 @@ model PrintJobFile {
   updatedAt              DateTime                @updatedAt
 
   @@index([printJobId, status])
+  @@index([storageKey])
 }
 
 model PrintJobEvent {

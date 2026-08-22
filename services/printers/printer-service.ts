@@ -231,3 +231,20 @@ export async function sendCommandToPrinter(printerId: string, jobId: string) {
   // In a real system, the printer would callback when done.
   // For the portal experience, we'll auto-complete it after a moment or just return.
 }
+
+export async function setEmployeeDefaultPrinterAction(formData: FormData) {
+  const { session, organization } = await requireOrganizationPermission(
+    ORGANIZATION_PERMISSIONS.PRINTERS_WRITE,
+  );
+  const printerId = String(formData.get("printerId") || "");
+  const { setEmployeeDefaultPrinter } = await import("@/services/printers/printer-resolution");
+  await setEmployeeDefaultPrinter(organization.id, session.userId, printerId || null);
+  await createAuditLog({
+    organizationId: organization.id,
+    actorUserId: session.userId,
+    action: printerId ? "printer.default_selected" : "printer.default_cleared",
+    entityType: "Printer",
+    entityId: printerId || session.userId,
+  });
+  redirect("/employee/printers?default=updated");
+}
