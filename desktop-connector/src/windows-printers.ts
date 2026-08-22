@@ -27,6 +27,9 @@ function stablePrinterId(printer: any) {
 function isUsableWindowsPrinter(printer: any) {
   if (!printer || printer.WorkOffline || !printer.Name) return false;
   if (printer.PrinterStatus && [7, 9].includes(Number(printer.PrinterStatus))) return false;
+  // Win32_Printer DetectedErrorState: no paper, no toner, door open, jammed,
+  // offline, service required, and a full output bin cannot safely accept a job.
+  if ([5, 7, 8, 9, 10, 11, 12].includes(Number(printer.DetectedErrorState))) return false;
   return true;
 }
 

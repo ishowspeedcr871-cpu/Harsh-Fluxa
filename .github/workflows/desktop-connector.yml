@@ -25,8 +25,18 @@ jobs:
           cache-dependency-path: desktop-connector/package.json
       - run: npm install
       - run: npm run typecheck
-      - run: npm run build
+      - run: npm run package:windows
+      - name: Verify Windows executable
+        shell: pwsh
+        run: |
+          $artifact = Get-Item "release/fluxa-desktop-connector.exe" -ErrorAction Stop
+          if ($artifact.Extension -ne ".exe") { throw "Connector artifact is not a Windows executable." }
+          if ($artifact.Length -lt 20MB) { throw "Connector executable is unexpectedly small ($($artifact.Length) bytes); refusing to upload a JavaScript-only artifact." }
+          $magic = [System.IO.File]::ReadAllBytes($artifact.FullName)[0..1]
+          if ($magic[0] -ne 0x4D -or $magic[1] -ne 0x5A) { throw "Connector artifact is not a PE executable." }
+          Write-Host "FLUXA Windows Connector: $($artifact.FullName) ($([math]::Round($artifact.Length / 1MB, 2)) MB)"
       - uses: actions/upload-artifact@v4
         with:
-          name: fluxa-desktop-connector-js
-          path: desktop-connector/dist
+          name: FLUXA-Windows-Connector
+          path: desktop-connector/release/fluxa-desktop-connector.exe
+          if-no-files-found: error

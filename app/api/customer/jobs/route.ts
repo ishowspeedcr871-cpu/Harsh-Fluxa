@@ -28,8 +28,7 @@ export async function POST(req: NextRequest) {
         });
       }
     } else {
-      body = await req.json();
-      uploadedFiles = body.files || [];
+      return NextResponse.json({ success: false, error: "BINARY_UPLOAD_REQUIRED: Submit multipart/form-data with one or more File objects." }, { status: 415 });
     }
 
     const job = await createCustomerPrintJob({

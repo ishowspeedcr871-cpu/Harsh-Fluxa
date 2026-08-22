@@ -7,7 +7,9 @@ import { readStoredFile } from "@/services/storage/gridfs-storage";
 export async function GET(req: NextRequest, { params }: { params: Promise<{ fileId: string }> }) {
   try {
     const apiKey = req.headers.get("x-api-key");
+    const connectorId = req.headers.get("x-fluxa-connector-id");
     if (!apiKey) return NextResponse.json({ error: "Missing API Key" }, { status: 401 });
+    if (!connectorId) return NextResponse.json({ error: "Missing Connector ID" }, { status: 401 });
 
     const organization = await verifyOrganizationApiKey(apiKey);
     if (!organization) return NextResponse.json({ error: "Invalid API Key" }, { status: 401 });
@@ -15,11 +17,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
     const { fileId } = await params;
     const file = await prisma.printJobFile.findFirst({
       where: { id: fileId, printJob: { organizationId: organization.id } },
-      include: { printJob: { select: { id: true, organizationId: true, status: true } } },
+      include: { printJob: { select: { id: true, organizationId: true, status: true, connectorClaimId: true, printer: { select: { connectorId: true } } } } },
     });
 
     if (!file) return NextResponse.json({ error: "FILE_NOT_FOUND" }, { status: 404 });
     if (!file.storageKey) return NextResponse.json({ error: "FILE_REFERENCE_MISSING" }, { status: 409 });
+    if (file.printJob.status !== "PRINTING" || file.printJob.connectorClaimId !== connectorId || file.printJob.printer?.connectorId !== connectorId) {
+      return NextResponse.json({ error: "FILE_NOT_RELEASED_TO_CONNECTOR" }, { status: 403 });
+    }
 
     const stored = await readStoredFile(file.storageKey);
     if (stored.size !== file.fileSize) return NextResponse.json({ error: "FILE_VALIDATION_FAILED", reason: "size_mismatch" }, { status: 422 });

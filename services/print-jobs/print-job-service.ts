@@ -115,6 +115,7 @@ export async function createCustomerPrintJob(input: CreatePrintJobInput) {
   if (!input.files?.length) throw new Error("FILE_REFERENCE_MISSING: At least one uploaded binary is required.");
   for (const file of input.files) {
     if (!file.storageKey) throw new Error("FILE_REFERENCE_MISSING: Uploaded file is missing its binary storage key.");
+    if (!file.checksumSha256) throw new Error("FILE_INTEGRITY_MISSING: Uploaded file is missing its binary checksum.");
     if (!CONNECTOR_SUPPORTED_MIME_TYPES.has(file.mimeType)) throw new Error("UNSUPPORTED_FILE_TYPE: Only PDF, PNG, JPEG, and WEBP files can be printed by the connector.");
   }
   const job = await prisma.printJob.create({

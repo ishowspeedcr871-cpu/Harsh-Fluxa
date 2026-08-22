@@ -122,6 +122,8 @@ export async function startJobAction(formData: FormData) {
       status: "PRINTING",
       printerId: printer.id,
       processingStartedAt: new Date(),
+      connectorClaimedAt: null,
+      connectorClaimId: null,
       events: {
         create: { actorUserId: session.userId, toStatus: "PRINTING", note: input.note || `Released to live printer ${printer.name}.` },
       },
